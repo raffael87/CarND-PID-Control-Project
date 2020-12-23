@@ -2,7 +2,7 @@
 #define PID_H
 
 class PID {
- public:
+public:
   /**
    * Constructor
    */
@@ -29,9 +29,8 @@ class PID {
    * Calculate the total PID error.
    * @output The total PID error
    */
-  double TotalError();
+  double TotalError() const;
 
- private:
   /**
    * PID Errors
    */
@@ -41,10 +40,12 @@ class PID {
 
   /**
    * PID Coefficients
-   */ 
+   */
   double Kp;
   double Ki;
   double Kd;
+
+  // bool is_first_time_;
 };
 
-#endif  // PID_H
+#endif // PID_H
