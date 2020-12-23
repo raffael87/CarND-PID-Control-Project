@@ -1,6 +1,6 @@
 #include "PID.h"
 #include "json.hpp"
-#include "pid_manager.h"
+#include "pid_twittle.h"
 #include <iostream>
 #include <math.h>
 #include <string>
@@ -30,31 +30,29 @@ string hasData(string s) {
   return "";
 }
 
+double GetSpeed(double cte, double speed, double angle) {
+  constexpr double kMaxSpeed = 60;
+  constexpr unsigned int kMaxAngle = 25;
+
+  return std::min(
+      kMaxSpeed,
+      std::max(0.0, kMaxSpeed * (1.0 - fabs(angle / kMaxAngle * cte) / 4)));
+}
+
 int main() {
   uWS::Hub h;
-  // PidsManager pids_manager(0.1, 0.0000, 0.5);
-
-  // PidsManager pids_manager(0.134611, 0.000270736, 3.05349);
-
-  // PidsManager pids_manager(0.2, 0.004, 3);
 
   PID pid_steering;
   pid_steering.Init(0.124, 0.00027, 3.03);
 
-  const bool twittle{false};
-  PidsManager pid_manager_steering(pid_steering);
-  // PID pid_steering;
-  // PID pid_throttle;
-  /**
-   * TODO: Initialize the pid variable.
-   */
-  // pid_steering.Init(0.02, 0.004, 3); // nope
-  // pid_steering.Init(0.1, 0.0000, 0.5);
-  // pid_steering.Init(0.134611, 0.000270736, 3.05349);
-  // pid_throttle.Init(0.316731, 0.0000, 0.0226185);
+  PID pid_throttle;
+  pid_throttle.Init(0.5, 0.0000, 1);
 
-  h.onMessage([&pid_manager_steering,
-               &pid_steering](uWS::WebSocket<uWS::SERVER> ws, char *data,
+  const bool twittle{false};
+  PidTwittle pid_twittle_steering(pid_steering);
+
+  h.onMessage([&pid_twittle_steering, &pid_steering,
+               &pid_throttle](uWS::WebSocket<uWS::SERVER> ws, char *data,
                               size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
@@ -70,25 +68,22 @@ int main() {
         if (event == "telemetry") {
           // j[1] is the data JSON object
           const double cte = std::stod(j[1]["cte"].get<string>());
-          double speed = std::stod(j[1]["speed"].get<string>());
-          // double angle = std::stod(j[1]["steering_angle"].get<string>());
+          const double speed = std::stod(j[1]["speed"].get<string>());
+          const double angle = std::stod(j[1]["steering_angle"].get<string>());
 
           pid_steering.UpdateError(cte);
           const double steer_value = pid_steering.TotalError();
 
-          // remember the steering value is [-1, 1].
-
-          // if (cte < 0) {
-          //   cte *= -1;
-          // }
-          // pid_throttle.UpdateError(fabs(cte));
-          // double throttle = 0.75 - pid_throttle.TotalError();
-          /**
-           * TODO: Calculate steering value here, remember the steering value is
-           *   [-1, 1].
-           * NOTE: Feel free to play around with the throttle and speed.
-           *   Maybe use another PID controller to control the speed!
-           */
+          double throttle_value = 0.3;
+          if (false) {
+            const double wanted_speed = GetSpeed(cte, speed, angle);
+            pid_throttle.UpdateError(wanted_speed - speed);
+            // a bit faster than normal
+            std::min(0.5, fabs(pid_throttle.TotalError()));
+            std::cout << "wanted speed: " << wanted_speed << std::endl;
+            std::cout << "throttle: " << throttle_value << std::endl
+                      << std::endl;
+          }
 
           // DEBUG
           // std::cout << "CTE: " << cte << " Steering Value: " << steer_value
@@ -96,19 +91,20 @@ int main() {
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
-          msgJson["throttle"] = 0.3; // throttle; // 0.3;
+          msgJson["throttle"] = throttle_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          // std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
 
+          // TWITTLE
           if (twittle) {
-            pid_manager_steering.UpdateCteError(cte);
+            pid_twittle_steering.UpdateCteError(cte);
 
-            if (pid_manager_steering.IsLapDriven() ||
-                pid_manager_steering.isOffTrack(cte, speed)) {
-              pid_manager_steering.Twittle();
+            if (pid_twittle_steering.IsVehicleCrashed(cte, speed) ||
+                pid_twittle_steering.IsLapDriven()) {
+              pid_twittle_steering.Twittle();
 
-              string msg = "42[\"reset\", {}]";
+              // restart the simulation
+              const string msg = "42[\"reset\", {}]";
               ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
             }
           }

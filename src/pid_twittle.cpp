@@ -1,12 +1,18 @@
-#include "pid_manager.h"
+#include "pid_twittle.h"
 
 namespace Config {
 constexpr unsigned int kStepsOneRound{5500U};
 constexpr unsigned int kStepsToIgnoreAtBeginning{100U};
+constexpr unsigned int kCrashSteps{100U};
+constexpr unsigned int kCrashMinVelocity{4U};
+constexpr unsigned int kCrashMinSteps{kCrashSteps * kCrashMinVelocity};
+constexpr unsigned int kCrashPenalization{1000U};
 constexpr double kDParamsTolerance{0.1};
 } // namespace Config
 
-PidsManager::PidsManager(PID &pid) : pid_(pid) {
+using namespace Config;
+
+PidTwittle::PidTwittle(PID &pid) : pid_(pid) {
   parameters_ = {pid.Kp, pid.Ki, pid.Kd};
   d_parameters_ = {pid.Kp * 0.1, pid.Ki * 0.1, pid.Kd * 0.1};
   best_error_ = std::numeric_limits<double>::max();
@@ -15,70 +21,67 @@ PidsManager::PidsManager(PID &pid) : pid_(pid) {
   current_parameter_ = 0;
   counter_ = 0;
   laps_ = 0;
-  offTrack_ = false;
-
-  // pid_steering_.Init(parameters_[0], parameters_[1], parameters_[2]);
+  is_vehicle_crashed_ = false;
 }
 
-void PidsManager::NextParameterIndex() {
+void PidTwittle::NextParameterIndex() {
   current_parameter_ = (current_parameter_ + 1U) % parameters_.size();
 }
 
-void PidsManager::UpdateCteError(double cte) {
-  if ((steps_ % (Config::kStepsOneRound + Config::kStepsToIgnoreAtBeginning)) >
-      Config::kStepsToIgnoreAtBeginning) {
+void PidTwittle::UpdateCteError(double cte) {
+  if (steps_ > kStepsToIgnoreAtBeginning) {
     total_ct_error_ += pow(cte, 2);
   }
-  steps_++;
+
+  ++steps_;
 }
 
-bool PidsManager::isOffTrack(double cte, double speed) {
-  // the car is off track if after some initial steps we get very high cte
-  // values or small vehicle speed
-  if (steps_ > 4 * Config::kStepsToIgnoreAtBeginning) {
-    offTrack_ = speed < 4 || cte > 6;
-    return offTrack_;
-  } else {
-    return false;
+bool PidTwittle::IsVehicleCrashed(const double cte, const double speed) {
+  is_vehicle_crashed_ = false;
+  if (kCrashMinSteps < steps_) {
+    if ((6U < cte) || kCrashMinVelocity > speed)
+      is_vehicle_crashed_ = true;
   }
+  return is_vehicle_crashed_;
 }
 
-void PidsManager::Twittle() {
+void PidTwittle::Twittle() {
   // Calculate sum of dprams and if bigger then perform twittle
   double sum_d_params =
       accumulate(d_parameters_.begin(), d_parameters_.end(), 0.0);
 
+  std::cout << "###### Lap finished ######" << std::endl;
   std::cout << "Sum params: " << sum_d_params << std::endl;
-  std::cout << "Operation: " << static_cast<int>(current_operation_)
+  std::cout << "Current Operation: " << static_cast<int>(current_operation_)
             << std::endl;
 
-  double error = total_ct_error_ / (steps_ - Config::kStepsToIgnoreAtBeginning);
+  double error = total_ct_error_ / (steps_ - kStepsToIgnoreAtBeginning);
 
   std::cout << "Current Error: " << error << std::endl;
 
-  if (sum_d_params > Config::kDParamsTolerance) {
-    if (offTrack_) {
-      error += 1000U;
+  if (sum_d_params > kDParamsTolerance) {
+    if (is_vehicle_crashed_) {
+      error += kCrashPenalization;
     }
     switch (current_operation_) {
     case Operation::first:
+      current_operation_ = Operation::inc;
       best_error_ = error;
       parameters_[current_parameter_] += d_parameters_[current_parameter_];
-      current_operation_ = Operation::inc;
-      std::cout << "--- first inc" << std::endl;
+      // std::cout << "--- first inc" << std::endl;
       break;
     case Operation::inc:
       if (error > best_error_) {
-        std::cout << "--- inc better" << std::endl;
+        // std::cout << "--- inc better" << std::endl;
         best_error_ = error;
         d_parameters_[current_parameter_] *= 1.1;
         NextParameterIndex();
         parameters_[current_parameter_] += d_parameters_[current_parameter_];
       } else {
-        std::cout << "--- inc worse" << std::endl;
+        // std::cout << "--- inc worse" << std::endl;
+        current_operation_ = Operation::dec;
         parameters_[current_parameter_] -=
             2U * d_parameters_[current_parameter_];
-        current_operation_ = Operation::dec;
       }
       break;
     case Operation::dec:
@@ -86,9 +89,9 @@ void PidsManager::Twittle() {
       if (error < best_error_) {
         best_error_ = error;
         d_parameters_[current_parameter_] *= 1.1;
-        std::cout << "--- dec better" << std::endl;
+        // std::cout << "--- dec better" << std::endl;
       } else {
-        std::cout << "--- dec worse" << std::endl;
+        // std::cout << "--- dec worse" << std::endl;
         parameters_[current_parameter_] += d_parameters_[current_parameter_];
         d_parameters_[current_parameter_] *= 0.9;
       }
@@ -109,11 +112,10 @@ void PidsManager::Twittle() {
   // reset error, steps etc
   total_ct_error_ = 0.0;
   steps_ = 0U;
-  offTrack_ = false;
+  is_vehicle_crashed_ = false;
 }
 
-void PidsManager::Log() {
-  std::cout << "###### Lap finished ######" << std::endl;
+void PidTwittle::Log() const {
   std::cout << "Laps: " << laps_ << std::endl;
   std::cout << "Parameter changes: " << counter_ << std::endl;
   std::cout << "Best Error: " << best_error_ << std::endl;
@@ -122,11 +124,9 @@ void PidsManager::Log() {
   std::cout << "New D Parameters: " << d_parameters_[0] << " "
             << d_parameters_[1] << " " << d_parameters_[2] << std::endl;
   std::cout << "Steps: " << steps_ << std::endl;
-  std::cout << "Crashed: " << offTrack_ << std::endl;
+  std::cout << "Crashed: " << is_vehicle_crashed_ << std::endl;
   std::cout << "Next Operation: " << static_cast<int>(current_operation_)
             << std::endl;
 }
 
-bool PidsManager::IsLapDriven() const {
-  return steps_ >= Config::kStepsOneRound;
-}
+bool PidTwittle::IsLapDriven() const { return steps_ >= kStepsOneRound; }

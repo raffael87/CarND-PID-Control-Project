@@ -1,7 +1,33 @@
 # CarND-Controls-PID
 Self-Driving Car Engineer Nanodegree Program
 
----
+## Goal
+Goal of this project is to implement a pid controller which helps the car to steer and in best case also to adapt the velocity.
+The simulation publishes in each cycle the CTR (cross track error), steering angle and the speed of the vehicle.
+With this data, the PID controller should manoeuvre the car safely.
+
+## Projects Specification
+### Describe the effect each of the P, I, D components had in your implementation.
+* The proportional component has a big impact on the vehicles steering. With the P component the proportion of the steering can be controlled. If the distance of the vehicle to the lane center is big, then it will counter steer stronger. If it is closer to the center lane (smaller CTR), it will counter steer less
+
+* The differential component helps to avoid that the vehicle overshoots the center line. Without this component, the car would overshoot the line, counter steer, overshoot again etc. Having an optimal parameter value makes the vehicle approach the center line, but do not overshoot
+
+* The integral component helps to minimize a bias which the CTE can have (e.g. steering wheels are not aligned properly). Having this bias, it can happen that the normal PD controller is not able to steer towards the center line.
+
+* During tuning of the hyperparameters it is quite visible how bigger changes affect the steering. This can be seen here, where a p value from 6 is chosen:
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/Nmo-DLA9YoA/0.jpg)](http://www.youtube.com/watch?v=Nmo-DLA9YoA"Driving "bad P")
+
+### Describe how the final hyperparameters were chosen.
+
+1. PID class was implemented in order to have a running controller. Controller was connected with the simulation.
+2. The first hyperparameters where chosen via trial and error. The goal was to have parameters where the vehicle could drive a lap without crashing. The throttle was constant with 0.3
+3. The twittle component was implemented. It follows the structure from the lesson. The component updates after each cycle and a period of settling in the error. If the car crashes or a lap is performed, then the parameters are being updated and the simulation is restarted.
+4. In order to learn the hyper parameters a few iterations (laps) have to be done.
+5. In the end a the hyperparameters were trained and a good result was achieved with: `P: 0.124, I: 0.00027, D: 3.03`
+6. Speed and throttle were also connected to a pid controller, but the results where not that optimum. A training of the hyperparameters was not performed yet
+
+Result:
+[![IMAGE ALT TEXT](http://img.youtube.com/vi/9liJ9HQpgMY/0.jpg)](http://www.youtube.com/watch?v=9liJ9HQpgMY "Driving PID")
 
 ## Dependencies
 
@@ -19,7 +45,7 @@ Self-Driving Car Engineer Nanodegree Program
   * Run either `./install-mac.sh` or `./install-ubuntu.sh`.
   * If you install from source, checkout to commit `e94b6e1`, i.e.
     ```
-    git clone https://github.com/uWebSockets/uWebSockets 
+    git clone https://github.com/uWebSockets/uWebSockets
     cd uWebSockets
     git checkout e94b6e1
     ```
@@ -33,7 +59,7 @@ Fellow students have put together a guide to Windows set-up for the project [her
 1. Clone this repo.
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
-4. Run it: `./pid`. 
+4. Run it: `./pid`.
 
 Tips for setting up your environment can be found [here](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/0949fca6-b379-42af-a919-ee50aa304e6a/lessons/f758c44c-5e40-4e01-93b5-1a82aa4e044f/concepts/23d376c7-0195-4276-bdf0-e02f1f3c665d)
 
@@ -95,4 +121,3 @@ still be compilable with cmake and make./
 
 ## How to write a README
 A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-

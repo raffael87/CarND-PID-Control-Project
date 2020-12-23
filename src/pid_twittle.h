@@ -1,5 +1,5 @@
-#ifndef PID_MANAGER_H
-#define PID_MANAGER_H
+#ifndef PID_TWITTLE_H
+#define PID_TWITTLE_H
 
 #include "PID.h"
 
@@ -7,18 +7,18 @@
 #include <numeric>
 #include <vector>
 
-class PidsManager {
+class PidTwittle {
 public:
-  PidsManager(PID &pid);
+  PidTwittle(PID &pid);
 
   void UpdateCteError(double cte);
   void Twittle();
   bool IsLapDriven() const;
-  bool isOffTrack(double cte, double speed);
+  bool IsVehicleCrashed(double cte, double speed);
 
 private:
   void NextParameterIndex();
-  void Log();
+  void Log() const;
 
   PID &pid_;
 
@@ -33,11 +33,11 @@ private:
   unsigned int counter_;
   unsigned int laps_;
 
-  bool offTrack_;
+  bool is_vehicle_crashed_;
 
   enum class Operation { first, inc, dec };
 
   Operation current_operation_;
 };
 
-#endif // PID_MANAGER_H
+#endif // PID_TWITTLE_H

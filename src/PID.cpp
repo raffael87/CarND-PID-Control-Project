@@ -5,9 +5,6 @@
  * TODO: Complete the PID class. You may add any additional desired functions.
  */
 
-constexpr unsigned int kStepsOneRound{3400U};
-constexpr unsigned int kStepsToIgnoreAtBeginning{100U};
-
 PID::PID() {}
 
 PID::~PID() {}
@@ -23,18 +20,9 @@ void PID::Init(double Kp_, double Ki_, double Kd_) {
   p_error = 0.0;
   i_error = 0.0;
   d_error = 0.0;
-
-  // is_first_time_ = true;
 }
 
 void PID::UpdateError(double cte) {
-
-  // if (is_first_time_) {
-  //   // to get correct initial d_error
-  //   p_error = cte;
-  //   is_first_time_ = false;
-  // }
-
   d_error = cte - p_error;
   p_error = cte;
   i_error += cte;
